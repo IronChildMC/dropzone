@@ -1,0 +1,629 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#080b14">
+<title>DropZone P2P — Transferencia directa</title>
+<script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+<style>
+:root{color-scheme:dark;--bg:#080b14;--panel:#111827;--line:#263248;--muted:#98a7bd;--blue:#818cf8;--green:#34d399}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(ellipse at 50% -20%,#26316b 0,transparent 55%),var(--bg);color:#f4f7ff;font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;min-height:100vh}
+button,input{font:inherit}
+button{cursor:pointer;border:0;border-radius:12px;padding:12px 17px;font-weight:750;transition:.18s}
+button:disabled{opacity:.45;cursor:not-allowed}
+button:not(:disabled):hover{filter:brightness(1.12);transform:translateY(-1px)}
+.primary{background:linear-gradient(135deg,#818cf8,#6366f1);color:white}
+.secondary{background:#202b40;color:#eef2ff;border:1px solid #334155}
+.ghost{background:transparent;color:#bac6da;border:1px solid var(--line)}
+header{max-width:1050px;margin:auto;padding:27px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{display:flex;align-items:center;gap:12px;font-size:20px;font-weight:900;letter-spacing:-.7px}
+.logo{display:grid;place-items:center;width:43px;height:43px;border-radius:14px;background:linear-gradient(140deg,#818cf8,#4f46e5);font-size:23px;box-shadow:0 6px 30px #6366f133}
+.pill{font-size:12px;border:1px solid #245945;background:#0c2825;color:#6ee7b7;border-radius:99px;padding:6px 10px}
+main{max-width:940px;margin:36px auto 60px;padding:0 20px}
+.hero{text-align:center;margin-bottom:34px}
+.eyebrow{color:#a5b4fc;text-transform:uppercase;letter-spacing:3px;font-size:11px;font-weight:850}
+h1{font-size:clamp(34px,6vw,56px);line-height:1.08;letter-spacing:-2px;margin:15px 0}
+h1 span{background:linear-gradient(100deg,#c4b5fd,#67e8f9);color:transparent;background-clip:text}
+.hero p{color:var(--muted);max-width:560px;margin:0 auto;line-height:1.8}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.panel{background:linear-gradient(160deg,#141d2e,#0e1421);border:1px solid var(--line);border-radius:22px;padding:23px;min-width:0;box-shadow:0 16px 60px #0002}
+.panel h2{font-size:19px;margin:0 0 6px;letter-spacing:-.5px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 20px}
+.bigicon{width:48px;height:48px;display:grid;place-items:center;background:#202b48;border:1px solid #34416a;border-radius:15px;font-size:24px;margin-bottom:16px}
+.drop{border:1px dashed #465577;background:#0a1020;border-radius:16px;text-align:center;padding:24px 12px;cursor:pointer;transition:.2s}
+.drop:hover,.drop.over{border-color:#a5b4fc;background:#171c37}
+.drop strong{display:block;margin:7px 0}
+.drop small{color:var(--muted)}
+#fileInput{display:none}
+.filelist{display:grid;gap:7px;margin-top:12px;max-height:180px;overflow:auto}
+.fileitem{display:flex;align-items:center;gap:10px;padding:9px 11px;background:#0b1220;border-radius:10px;min-width:0;font-size:12px}
+.fileitem .fname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.muted{color:var(--muted)}
+.full{width:100%;margin-top:14px}
+.status{display:flex;align-items:center;gap:9px;margin-top:17px;color:var(--muted);font-size:12px}
+.dot{width:8px;height:8px;border-radius:50%;background:#64748b;flex-shrink:0}
+.dot.live{background:var(--green);box-shadow:0 0 12px #34d39977}
+.linkbox{display:flex;gap:7px;margin-top:13px}
+.linkbox input{min-width:0;width:100%;background:#080d17;border:1px solid var(--line);color:#dbeafe;border-radius:10px;padding:11px;font-size:12px}
+.progressbox{margin-top:18px;display:none}
+.progresstext{display:flex;justify-content:space-between;gap:10px;font-size:12px;margin-bottom:8px}
+progress{width:100%;height:8px;border:0;border-radius:9px;overflow:hidden}
+progress::-webkit-progress-bar{background:#283347}
+progress::-webkit-progress-value{background:linear-gradient(90deg,#818cf8,#67e8f9);border-radius:9px}
+progress::-moz-progress-bar{background:#818cf8}
+.note{margin-top:18px;padding:13px;border-radius:12px;background:#0b1220;border:1px solid #243147;color:var(--muted);font-size:12px;line-height:1.7}
+#log{margin-top:16px;color:#a5b4c8;font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere}
+footer{text-align:center;color:#64748b;font-size:12px;margin:32px 0 0}
+footer a{color:#a5b4fc}
+@media(max-width:700px){header{padding:18px 16px}main{margin-top:22px;padding:0 14px}.grid{grid-template-columns:1fr}.panel{padding:19px}.hero{margin-bottom:24px}.pill{font-size:10px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><div class="logo">↗</div>DropZone <span style="color:#818cf8">P2P</span></div>
+  <div class="pill">● SIN NUBE DE ARCHIVOS</div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="eyebrow">Peer to peer · WebRTC</div>
+    <h1>Tus archivos.<br><span>Sin intermediarios.</span></h1>
+    <p>Transfiere archivos directamente entre dos navegadores. Sin cuentas, sin subirlos a una nube de almacenamiento y sin un límite fijo de tamaño impuesto por la interfaz.</p>
+  </section>
+
+  <div class="grid">
+    <section class="panel">
+      <div class="bigicon">↥</div>
+      <h2>Enviar archivos</h2>
+      <p class="sub">Elige los archivos y crea un enlace de invitación.</p>
+      <label class="drop" id="drop" for="fileInput">
+        <span style="font-size:28px">＋</span>
+        <strong>Arrastra tus archivos aquí</strong>
+        <small>o pulsa para explorar tu ordenador</small>
+      </label>
+      <input id="fileInput" type="file" multiple>
+      <div class="filelist" id="filelist"></div>
+      <button class="primary full" id="createBtn">Crear sala de envío</button>
+      <div class="status"><span class="dot" id="sendDot"></span><span id="sendStatus">Esperando para crear una sala</span></div>
+      <div id="shareArea" hidden>
+        <div class="linkbox">
+          <input id="shareLink" readonly aria-label="Enlace para recibir">
+          <button class="secondary" id="copyBtn">Copiar</button>
+        </div>
+        <p class="sub" style="margin-top:10px;margin-bottom:0">Envía este enlace al destinatario. Mantén esta página abierta hasta que termine la transferencia.</p>
+      </div>
+      <div class="progressbox" id="sendProgressBox">
+        <div class="progresstext"><span id="sendFileName">Preparando...</span><span id="sendPct">0%</span></div>
+        <progress id="sendProgress" max="100" value="0"></progress>
+        <div class="muted" id="sendBytes" style="font-size:11px;margin-top:6px"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="bigicon">↧</div>
+      <h2>Recibir archivos</h2>
+      <p class="sub">Abre el enlace que te han enviado para conectar con el emisor.</p>
+      <div class="note" id="inviteInfo">
+        <strong style="color:#e2e8f0">¿Tienes una invitación?</strong><br>
+        Abre el enlace completo en esta misma aplicación. Si no tienes un enlace, pídeselo a la persona que enviará los archivos.
+      </div>
+      <button class="primary full" id="joinBtn" disabled>Conectar y recibir</button>
+      <div class="status"><span class="dot" id="recvDot"></span><span id="recvStatus">Esperando un enlace de invitación</span></div>
+      <div class="progressbox" id="recvProgressBox">
+        <div class="progresstext"><span id="recvFileName">Esperando archivos...</span><span id="recvPct">0%</span></div>
+        <progress id="recvProgress" max="100" value="0"></progress>
+        <div class="muted" id="recvBytes" style="font-size:11px;margin-top:6px"></div>
+      </div>
+      <div id="receivedList" class="filelist"></div>
+      <div class="note" id="storageNote">
+        <strong style="color:#e2e8f0">Almacenamiento</strong><br>
+        En navegadores compatibles podrás seleccionar una carpeta de destino para escribir los archivos directamente en disco. En otros navegadores se utiliza memoria temporal, por lo que los archivos grandes podrían no caber.
+      </div>
+    </section>
+  </div>
+
+  <div class="note" style="margin-top:20px">
+    <strong style="color:#e2e8f0">Privacidad y conexión</strong><br>
+    El contenido viaja por un canal WebRTC cifrado. El servicio de señalización ayuda a conectar los navegadores; no es el almacenamiento de tus archivos. Según la red, el tráfico puede necesitar un servidor TURN. No compartas enlaces de invitación con personas desconocidas.
+  </div>
+  <div id="log" role="status" aria-live="polite"></div>
+  <footer>DropZone P2P · Primera versión · <a href="https://github.com/peers/peerjs" target="_blank" rel="noopener">Tecnología PeerJS</a></footer>
+</main>
+
+<script>
+(() => {
+  "use strict";
+
+  const $ = id => document.getElementById(id);
+  const CHUNK = 128 * 1024;
+  const HIGH_WATER = 2 * 1024 * 1024;
+  const params = new URLSearchParams(location.search);
+  const inviteId = params.get("join");
+
+  let files = [];
+  let peer = null;
+  let connection = null;
+  let sending = false;
+  let receiving = false;
+  let chosenDirectory = null;
+  let receivedCount = 0;
+  let totalReceived = 0;
+  let receiveQueue = Promise.resolve();
+  let currentFile = null;
+  let currentWriter = null;
+  let memoryChunks = [];
+  let ackResolver = null;
+  let completed = false;
+
+  function status(which, message, live=false) {
+    $(which + "Status").textContent = message;
+    $(which + "Dot").classList.toggle("live", live);
+  }
+
+  function log(message) {
+    $("log").textContent = message;
+  }
+
+  function formatBytes(n) {
+    if (!Number.isFinite(n) || n < 0) return "—";
+    if (n < 1024) return n + " B";
+    const units = ["KB", "MB", "GB", "TB", "PB"];
+    let i = -1;
+    do { n /= 1024; i++; } while (n >= 1024 && i < units.length - 1);
+    return n.toFixed(2) + " " + units[i];
+  }
+
+  function safeName(name) {
+    return String(name || "archivo")
+      .replace(/[<>:"/\\|?*\x00-\x1f]/g, "_")
+      .replace(/^\.+$/, "_")
+      .slice(0, 220) || "archivo";
+  }
+
+  function renderFiles() {
+    const list = $("filelist");
+    list.replaceChildren();
+    for (const f of files) {
+      const item = document.createElement("div");
+      item.className = "fileitem";
+      const icon = document.createElement("span");
+      icon.textContent = "▤";
+      const name = document.createElement("span");
+      name.className = "fname";
+      name.textContent = f.name;
+      name.title = f.name;
+      const size = document.createElement("span");
+      size.className = "muted";
+      size.textContent = formatBytes(f.size);
+      item.append(icon, name, size);
+      list.append(item);
+    }
+    $("createBtn").disabled = files.length === 0 || !!peer;
+  }
+
+  $("fileInput").addEventListener("change", e => {
+    if (peer) return;
+    files = Array.from(e.target.files || []);
+    renderFiles();
+  });
+
+  const drop = $("drop");
+  drop.addEventListener("dragover", e => {
+    e.preventDefault();
+    drop.classList.add("over");
+  });
+  drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+  drop.addEventListener("drop", e => {
+    e.preventDefault();
+    drop.classList.remove("over");
+    if (peer) return;
+    files = Array.from(e.dataTransfer.files || []);
+    $("fileInput").value = "";
+    renderFiles();
+  });
+
+  function newPeer() {
+    if (typeof Peer === "undefined") {
+      throw new Error("No se ha podido cargar PeerJS. Comprueba tu conexión y recarga la página.");
+    }
+    // Para una instalación propia, configura aquí tus servidores STUN/TURN.
+    // TURN requiere una dirección y credenciales válidas.
+    return new Peer(undefined, {
+      debug: 1,
+      config: {
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" }
+        ]
+      }
+    });
+  }
+
+  function wirePeerErrors(p) {
+    p.on("error", err => {
+      log("Error de conexión: " + (err.message || err.type || "desconocido"));
+      if (err.type === "peer-unavailable") {
+        status("recv", "No se encuentra el emisor. Comprueba el enlace y que siga conectado.");
+      }
+    });
+    p.on("disconnected", () => {
+      log("Se ha interrumpido la señalización. La conexión existente podría seguir activa.");
+    });
+  }
+
+  $("createBtn").addEventListener("click", async () => {
+    if (!files.length || peer) return;
+    $("createBtn").disabled = true;
+    status("send", "Creando sala...");
+    try {
+      peer = newPeer();
+      wirePeerErrors(peer);
+
+      peer.on("open", id => {
+        const url = new URL(location.href);
+        url.search = "";
+        url.hash = "";
+        url.searchParams.set("join", id);
+        $("shareLink").value = url.href;
+        $("shareArea").hidden = false;
+        status("send", "Sala lista. Esperando al destinatario...", true);
+        log("Sala creada. El emisor debe mantener esta página abierta.");
+      });
+
+      peer.on("connection", conn => {
+        if (connection) {
+          conn.close();
+          return;
+        }
+        connection = conn;
+        status("send", "Destinatario conectado. Preparando transferencia...", true);
+        wireConnection(conn, "sender");
+      });
+    } catch (e) {
+      status("send", e.message || "No se ha podido crear la sala.");
+      $("createBtn").disabled = false;
+    }
+  });
+
+  $("copyBtn").addEventListener("click", async () => {
+    const link = $("shareLink").value;
+    try {
+      await navigator.clipboard.writeText(link);
+      $("copyBtn").textContent = "¡Copiado!";
+    } catch {
+      $("shareLink").focus();
+      $("shareLink").select();
+      log("Selecciona y copia el enlace manualmente con Ctrl+C.");
+    }
+    setTimeout(() => $("copyBtn").textContent = "Copiar", 1600);
+  });
+
+  if (inviteId) {
+    $("inviteInfo").innerHTML =
+      '<strong style="color:#a5b4fc">Invitación detectada</strong><br>' +
+      'Se ha encontrado un identificador de sala. Conecta para recibir los archivos del emisor.';
+    $("joinBtn").disabled = false;
+    status("recv", "Invitación lista. Pulsa conectar.");
+  }
+
+  $("joinBtn").addEventListener("click", async () => {
+    if (!inviteId || receiving) return;
+    receiving = true;
+    $("joinBtn").disabled = true;
+
+    try {
+      if (typeof window.showDirectoryPicker === "function") {
+        try {
+          chosenDirectory = await window.showDirectoryPicker({ mode: "readwrite" });
+          $("storageNote").innerHTML =
+            '<strong style="color:#6ee7b7">Carpeta seleccionada</strong><br>' +
+            'Los archivos se escribirán directamente en la carpeta elegida.';
+        } catch (e) {
+          if (e.name === "AbortError") {
+            receiving = false;
+            $("joinBtn").disabled = false;
+            status("recv", "Selecciona una carpeta o cancela para volver a intentarlo.");
+            return;
+          }
+          throw e;
+        }
+      } else {
+        $("storageNote").innerHTML =
+          '<strong style="color:#fbbf24">Modo memoria temporal</strong><br>' +
+          'Este navegador no permite seleccionar una carpeta desde esta aplicación. Los archivos se ensamblarán en memoria; los archivos muy grandes podrían fallar.';
+      }
+
+      peer = newPeer();
+      wirePeerErrors(peer);
+
+      peer.on("open", () => {
+        status("recv", "Conectando con el emisor...", true);
+        connection = peer.connect(inviteId, {
+          reliable: true,
+          serialization: "binary"
+        });
+        wireConnection(connection, "receiver");
+      });
+    } catch (e) {
+      receiving = false;
+      $("joinBtn").disabled = false;
+      status("recv", e.message || "No se ha podido iniciar la conexión.");
+    }
+  });
+
+  function wireConnection(conn, role) {
+    conn.on("open", () => {
+      if (role === "sender") {
+        status("send", "Conexión establecida. Enviando archivos...", true);
+        sendFiles(conn).catch(e => {
+          status("send", "Transferencia interrumpida.");
+          log("Error al enviar: " + (e.message || e));
+        });
+      } else {
+        status("recv", "Conectado. Esperando archivos...", true);
+      }
+    });
+
+    conn.on("data", data => {
+      if (role === "sender") {
+        if (data && typeof data === "object" && data.type === "complete" && ackResolver) {
+          const resolve = ackResolver;
+          ackResolver = null;
+          resolve();
+        }
+        return;
+      }
+
+      receiveQueue = receiveQueue.then(() => handleIncoming(data, conn))
+        .catch(e => {
+          status("recv", "Error al guardar el archivo.");
+          log("Error al recibir: " + (e.message || e));
+          try { if (currentWriter) currentWriter.abort(); } catch {}
+          currentWriter = null;
+          currentFile = null;
+        });
+    });
+
+    conn.on("close", () => {
+      if (role === "sender") {
+        status("send", "Conexión cerrada.");
+        if (!completed) log("La conexión se cerró antes de confirmar todos los archivos.");
+      } else {
+        status("recv", "Conexión cerrada.");
+      }
+    });
+
+    conn.on("error", e => {
+      log("Error del canal: " + (e.message || e));
+    });
+  }
+
+  function waitForBuffer(conn) {
+    return new Promise((resolve, reject) => {
+      let finished = false;
+      const deadline = Date.now() + 120000;
+
+      function check() {
+        if (finished) return;
+        if (!conn.open) {
+          finished = true;
+          reject(new Error("La conexión se ha cerrado."));
+          return;
+        }
+        const dc = conn.dataChannel;
+        if (!dc || dc.readyState !== "open") {
+          finished = true;
+          reject(new Error("El canal de datos se ha cerrado."));
+          return;
+        }
+        if (dc.bufferedAmount <= HIGH_WATER) {
+          finished = true;
+          resolve();
+          return;
+        }
+        if (Date.now() > deadline) {
+          finished = true;
+          reject(new Error("Tiempo de espera agotado al enviar datos."));
+          return;
+        }
+        setTimeout(check, 30);
+      }
+      check();
+    });
+  }
+
+  function waitForAck() {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        if (ackResolver === finish) ackResolver = null;
+        reject(new Error("El receptor no ha confirmado el archivo."));
+      }, 10 * 60 * 1000);
+
+      function finish() {
+        clearTimeout(timer);
+        resolve();
+      }
+      ackResolver = finish;
+    });
+  }
+
+  async function sendFiles(conn) {
+    if (sending) return;
+    sending = true;
+    let doneFiles = 0;
+
+    try {
+      for (const file of files) {
+        if (!conn.open) throw new Error("Conexión cerrada.");
+        $("sendProgressBox").style.display = "block";
+        $("sendFileName").textContent = file.name;
+        $("sendProgress").value = 0;
+        $("sendPct").textContent = "0%";
+        $("sendBytes").textContent = "0 / " + formatBytes(file.size);
+
+        conn.send({
+          type: "start",
+          name: file.name,
+          size: file.size,
+          mime: file.type || "application/octet-stream",
+          index: doneFiles
+        });
+
+        let offset = 0;
+        while (offset < file.size) {
+          await waitForBuffer(conn);
+          const end = Math.min(offset + CHUNK, file.size);
+          const buffer = await file.slice(offset, end).arrayBuffer();
+          if (!conn.open) throw new Error("Conexión cerrada.");
+          conn.send(buffer);
+          offset = end;
+          const pct = file.size ? Math.floor(offset / file.size * 100) : 100;
+          $("sendProgress").value = pct;
+          $("sendPct").textContent = pct + "%";
+          $("sendBytes").textContent = formatBytes(offset) + " / " + formatBytes(file.size);
+        }
+
+        await waitForBuffer(conn);
+        const ack = waitForAck();
+        conn.send({ type: "end" });
+        await ack;
+        doneFiles++;
+      }
+
+      completed = true;
+      conn.send({ type: "allDone", count: doneFiles });
+      status("send", "Todos los archivos se han recibido y confirmado.", true);
+      log("Transferencia completada: " + doneFiles + " archivo(s).");
+    } finally {
+      sending = false;
+    }
+  }
+
+  async function handleIncoming(data, conn) {
+    if (data && typeof data === "object" &&
+        !(data instanceof ArrayBuffer) && !(data instanceof Blob) &&
+        !(data instanceof Uint8Array)) {
+      if (data.type === "start") {
+        if (currentWriter) throw new Error("Se recibió un archivo nuevo antes de cerrar el anterior.");
+        currentFile = {
+          name: safeName(data.name),
+          size: Number(data.size),
+          mime: data.mime || "application/octet-stream",
+          received: 0
+        };
+        if (!Number.isSafeInteger(currentFile.size) || currentFile.size < 0) {
+          throw new Error("Tamaño de archivo no válido.");
+        }
+
+        memoryChunks = [];
+        currentWriter = null;
+
+        if (chosenDirectory) {
+          const handle = await chosenDirectory.getFileHandle(currentFile.name, { create: true });
+          currentWriter = await handle.createWritable();
+        }
+
+        $("recvProgressBox").style.display = "block";
+        $("recvFileName").textContent = currentFile.name;
+        $("recvProgress").value = 0;
+        $("recvPct").textContent = "0%";
+        $("recvBytes").textContent = "0 / " + formatBytes(currentFile.size);
+        status("recv", "Recibiendo " + currentFile.name, true);
+        return;
+      }
+
+      if (data.type === "end") {
+        if (!currentFile) throw new Error("Se recibió el final sin un archivo abierto.");
+
+        const f = currentFile;
+        if (f.received !== f.size) {
+          throw new Error("El tamaño recibido no coincide con el tamaño esperado.");
+        }
+
+        if (currentWriter) {
+          await currentWriter.close();
+          currentWriter = null;
+        } else {
+          const blob = new Blob(memoryChunks, { type: f.mime });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = f.name;
+          a.style.display = "none";
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 60000);
+          memoryChunks = [];
+        }
+
+        receivedCount++;
+        totalReceived += f.size;
+        const item = document.createElement("div");
+        item.className = "fileitem";
+        const name = document.createElement("span");
+        name.className = "fname";
+        name.textContent = "✓ " + f.name;
+        const size = document.createElement("span");
+        size.className = "muted";
+        size.textContent = formatBytes(f.size);
+        item.append(name, size);
+        $("receivedList").append(item);
+
+        currentFile = null;
+        conn.send({ type: "complete" });
+        status("recv", "Archivo recibido: " + f.name, true);
+        log("Archivos completados: " + receivedCount + ". Total recibido: " + formatBytes(totalReceived));
+        return;
+      }
+
+      if (data.type === "allDone") {
+        status("recv", "¡Transferencia completada!", true);
+        log("El emisor ha terminado. Archivos recibidos: " + receivedCount + ".");
+        $("recvProgress").value = 100;
+        $("recvPct").textContent = "100%";
+      }
+      return;
+    }
+
+    if (!currentFile) throw new Error("Se recibieron datos sin metadatos del archivo.");
+
+    let chunk;
+    if (data instanceof ArrayBuffer) {
+      chunk = data;
+    } else if (data instanceof Blob) {
+      chunk = await data.arrayBuffer();
+    } else if (data instanceof Uint8Array) {
+      chunk = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+    } else {
+      throw new Error("Formato de datos desconocido.");
+    }
+
+    if (currentFile.received + chunk.byteLength > currentFile.size) {
+      throw new Error("Se han recibido más datos de los esperados.");
+    }
+
+    if (currentWriter) {
+      await currentWriter.write(chunk);
+    } else {
+      memoryChunks.push(chunk);
+    }
+
+    currentFile.received += chunk.byteLength;
+    const pct = currentFile.size
+      ? Math.floor(currentFile.received / currentFile.size * 100) : 100;
+    $("recvProgress").value = pct;
+    $("recvPct").textContent = pct + "%";
+    $("recvBytes").textContent =
+      formatBytes(currentFile.received) + " / " + formatBytes(currentFile.size);
+  }
+
+  if (!window.isSecureContext) {
+    log("Aviso: usa la web publicada con HTTPS para obtener la mejor compatibilidad.");
+  }
+})();
+</script>
+</body>
+</html>
